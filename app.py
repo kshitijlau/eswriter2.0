@@ -135,12 +135,32 @@ st.title("📄 Professional Performance Summary Generator (Azure OpenAI)")
 st.markdown("""
 This application uses AI to generate professional, behavioral summaries from assessment data.
 1.  **Set up your secrets file**. Create a `.streamlit/secrets.toml` file with your Azure OpenAI credentials.
-2.  **Upload your Excel file**. The file must contain 'Name', 'Indicator', 'Score', and 'Competency' columns.
-3.  **Click 'Generate Summaries'** to process the file and download the results.
+2.  **Download the Sample Template** to see the required Excel format.
+3.  **Upload your completed Excel file**.
+4.  **Click 'Generate Summaries'** to process the file and download the results.
 """)
 
+# --- Create and provide a sample file for download ---
+sample_data = {
+    'Name': ['John Doe', 'John Doe', 'John Doe', 'Jane Smith', 'Jane Smith', 'Jane Smith'],
+    'Competency': ['Decision Making', 'Strategic Thinking', 'Capability Development', 'Adaptability Towards Change', 'Communication', 'Inspirational Leadership'],
+    'Indicator': ['Makes decisions with confidence and gains buy-in', 'Thinks long-term and strategically', 'Delegates responsibilities effectively to others', 'Navigates through change and learns from experience', 'Communicates clearly and displays listening skills', 'Fails to recognize each team member\'s unique style'],
+    'Score': [5, 4, 2, 4, 3, 1]
+}
+sample_df = pd.DataFrame(sample_data)
+sample_excel_data = to_excel(sample_df)
+
+st.download_button(
+    label="📥 Download Sample Template File",
+    data=sample_excel_data,
+    file_name="summary_template.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
+st.divider()
+
 # --- File Uploader ---
-uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
+uploaded_file = st.file_uploader("Upload your completed Excel file here", type="xlsx")
 
 if uploaded_file is not None:
     try:
