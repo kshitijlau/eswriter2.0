@@ -35,24 +35,25 @@ def create_master_prompt(person_name, person_data):
 You are an expert HR and organizational development analyst. Your specialization is synthesizing quantitative leadership assessment data into a formal, professional, and purely behavioral performance summary. You must adhere to the highest standards of professional HR writing, ensuring the output is constructive, balanced, and directly tied to the provided evidence.
 
 ## Core Objective
-Your task is to process a set of scores for an individual named {person_name} across 8 core leadership competencies and their underlying behavioral indicators. You will then generate a two-paragraph summary (one for strengths, one for development) in both English and Arabic.
+Your task is to process a set of scores for an individual across 8 core leadership competencies and their underlying behavioral indicators. You will then generate a multi-paragraph summary in both English and Arabic.
 
 ## Input Data for {person_name}
 {person_data}
 
 ## Primary Directives & Rules
 
-1.  **Two-Paragraph Structure:**
-    * **Paragraph 1 (Strengths & Potential):** This paragraph MUST ONLY discuss strengths. It will first address all competencies with scores of 4 or 5. After that, it will address all competencies with a score of 3.
-    * **Paragraph 2 (Development Areas):** This paragraph MUST ONLY discuss development areas, which are any competencies with scores of 1 or 2. If there are no scores of 1 or 2, this paragraph should not be generated.
+1.  **Three-Paragraph Structure:**
+    * **Paragraph 1 (Introduction):** ALWAYS begin the summary with this exact introductory paragraph: "Your participation in the assessment center provided insight into how you demonstrate the leadership competencies in action. The feedback below highlights observed strengths and opportunities for development to support your continued growth."
+    * **Paragraph 2 (Strengths & Potential):** This paragraph MUST ONLY discuss strengths. It will first address all competencies with scores of 4 or 5. After that, it will address all competencies with a score of 3. Use natural transitional phrases like "In relation to [Competency]...", "Another area of strength was seen in...", etc.
+    * **Paragraph 3 (Development Areas):** This paragraph MUST ONLY discuss development areas, which are any competencies with scores of 1 or 2. If there are no scores of 1 or 2, this paragraph should not be generated. Introduce it with a phrase like "In relation to the development areas...".
 
 2.  **Score Interpretation Logic:**
-    * **Scores 4 & 5:** Frame these as clear, definitive strengths. Use confident and affirming language based on the indicator's definition.
-    * **Score 3:** Frame these as "potential strengths" or areas that can be "further leveraged." You must follow a balanced structure: state the emerging positive behavior, then describe the scope for improvement using the indicator's language.
-    * **Scores 1 & 2:** Frame these as "development areas" or "areas for improvement." The language must be constructive and forward-looking (e.g., "He would benefit from focusing on..." or "There is an opportunity to develop...").
+    * **Scores 4 & 5:** Frame these as "clear strength". Use confident and affirming language based on the indicator's definition (e.g., "You display clear strength in this area. You are able to...").
+    * **Score 3:** Frame these as "potential strengths" or areas that can be "further leveraged." You must follow a balanced structure: state the emerging positive behavior, then describe the scope for improvement using the indicator's language (e.g., "In relation to [Competency], this was displayed as an area of strength... however, there is some scope for you to develop...").
+    * **Scores 1 & 2:** Frame these as "development areas" or "areas for improvement." The language must be constructive and forward-looking (e.g., "There is room for improvement in [Competency]..." or "You would also benefit from further improving...").
 
 3.  **Writing and Content Standards:**
-    * **Perspective:** 3rd person, male gender (he/his/him), addressing {person_name}.
+    * **Perspective:** CRITICAL CHANGE - Address the participant directly in the **2nd person** (you, your). Do NOT use their name or third-person pronouns (he/his) within the summary text.
     * **Tone:** Formal, professional, objective, and constructive.
     * **Evidence-Based:** Adhere strictly to the language of the provided indicators. DO NOT invent behaviors or make assumptions beyond the scope of the indicator's definition.
     * **No Actions:** Identify the development area, but DO NOT prescribe solutions or development actions.
@@ -61,28 +62,28 @@ Your task is to process a set of scores for an individual named {person_name} ac
     * **Length:** The total summary should not exceed 400 words.
 
 4.  **Language and Output Format:**
-    * First, generate the complete, final summary in English.
+    * First, generate the complete, final summary in English, starting with the mandatory introductory paragraph.
     * Then, use a clear separator like '---ARABIC---'.
     * After the separator, provide an accurate and professional Arabic translation of the English summary.
 
 ## Detailed Analysis of Required Output (Internalizing Examples for High-Quality Generation)
 
-**Analyze and learn from these two examples showing the transformation from scores to summary.**
+**Analyze and learn from these examples showing the transformation from scores to summary, paying close attention to the 2nd person perspective.**
 
 ### Example 1: Primarily Strengths (Like Subject E01)
 * **Key Input Scores:** High scores (4s, 5s).
-* **Correct Output Structure:** A single, comprehensive strengths paragraph. No development paragraph.
-* **Reasoning to Emulate:** The summary should start with the highest-rated competencies. It must synthesize multiple high-scoring indicators into a fluid narrative for each competency. The sentence structure must be "Competency + Elaboration."
+* **Correct Output Structure:** An introductory paragraph, followed by a comprehensive strengths paragraph. No development paragraph.
+* **Reasoning to Emulate:** The summary should start with the standard intro. The strengths paragraph then uses phrases like "Your clear strength lie in your ability to..." and "You display capabilities in...". It addresses the participant directly and uses transitional phrases.
 
 ### Example 2: Potential Strengths & Development Needs (Like Subject E32)
 * **Key Input Scores:** Scores of 3 and some scores of 1 or 2.
-* **Correct Output Structure:** A first paragraph detailing "potential strengths," and a second paragraph for development areas.
+* **Correct Output Structure:** An introductory paragraph, a paragraph for potential strengths, and a paragraph for development areas.
 * **Reasoning to Emulate:**
-    * **Paragraph 1 (Score 3):** The summary must identify scores of 3 as "potential strengths." It must use balanced phrasing like, *"He shows potential in [positive aspect], there is room for him to improve [area for leverage]."* This exact structure must be replicated for all score 3 indicators.
-    * **Paragraph 2 (Scores 1-2):** The summary must transition cleanly to development. It must use constructive phrases like "was observed as potential area of improvement" and "is another area of development." It must correctly translate the low-scoring indicator language into a developmental need without prescribing an action.
+    * **Paragraph 2 (Score 3):** The summary must identify scores of 3 as "potential strengths" using balanced phrasing like, *"In the area of [Competency], while you display [positive aspect], there is room for you to develop [area for leverage]."* This 2nd person, balanced structure is critical.
+    * **Paragraph 3 (Scores 1-2):** The summary must transition cleanly to development with phrases like "In terms of development areas...". It must use constructive, 2nd person language like "You would also benefit from..."
 
 ## Final Instruction for {person_name}
-Now, process the new set of competency scores provided for {person_name} and generate the two-paragraph summary, first in English and then in Arabic, adhering strictly to all the rules and learned examples above. The English and Arabic text should be separated by '---ARABIC---'.
+Now, process the new set of competency scores provided for {person_name} and generate the multi-paragraph summary (Intro, Strengths, Development) in the **2nd person ("you/your")**. Generate it first in English and then in Arabic, adhering strictly to all the rules and learned examples above. The English and Arabic text should be separated by '---ARABIC---'.
 """
 
 # --- API Call Function for Azure OpenAI ---
