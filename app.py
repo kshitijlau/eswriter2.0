@@ -134,7 +134,7 @@ st.set_page_config(page_title="HR Summary Generator (Azure)", layout="wide")
 st.title("📄 Professional Performance Summary Generator (Azure OpenAI)")
 st.markdown("""
 This application uses AI to generate professional, behavioral summaries from assessment data.
-1.  **Set up your secrets file**. Create a `.streamlit/secrets.toml` file with your Azure OpenAI credentials.
+1.  **Set up your secrets file**. Enter your Azure credentials in the Streamlit Cloud app settings.
 2.  **Download the Sample Template** to see the required Excel format.
 3.  **Upload your completed Excel file**.
 4.  **Click 'Generate Summaries'** to process the file and download the results.
@@ -177,16 +177,26 @@ if uploaded_file is not None:
 
             # The main action button to start the generation process
             if st.button("Generate Summaries", key="generate"):
+                # --- Improved Secrets Handling Logic ---
+                # 1. Check if the secrets dictionary exists at all.
+                if not hasattr(st, 'secrets') or not st.secrets:
+                    st.error("Secrets not found. Please ensure you have configured your secrets in the Streamlit Community Cloud settings.")
+                    st.stop()
+                
+                # 2. Check for the main 'azure_openai' section.
+                if "azure_openai" not in st.secrets:
+                    st.error("The `[azure_openai]` section is missing from your secrets configuration. Please check your spelling and formatting.")
+                    st.stop()
+
+                # 3. Check for each specific key within the section.
                 try:
-                    # Securely access the Azure credentials from Streamlit's secrets
                     azure_api_key = st.secrets["azure_openai"]["api_key"]
                     azure_endpoint = st.secrets["azure_openai"]["endpoint"]
                     azure_deployment_name = st.secrets["azure_openai"]["deployment_name"]
-                except (KeyError, FileNotFoundError):
-                    # Provide a clear error if the secrets file is missing or misconfigured
-                    st.error("Azure OpenAI credentials not found. Please create a `.streamlit/secrets.toml` file with your `api_key`, `endpoint`, and `deployment_name`.")
-                    st.stop() # Stop execution if credentials are not found
-
+                except KeyError as e:
+                    st.error(f"Missing key in your [azure_openai] secrets: {e}. Please ensure `api_key`, `endpoint`, and `deployment_name` are all present.")
+                    st.stop()
+                
                 # Group the DataFrame by 'Name' to process each person individually
                 grouped = df.groupby('Name')
                 results = []
