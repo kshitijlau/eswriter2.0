@@ -4,11 +4,8 @@ import io
 
 # --- Helper Functions ---
 
-def get_sample_df():
-    """
-    Creates a sample DataFrame that matches the required Excel format.
-    This will be used to generate the downloadable template file.
-    """
+def get_sample_scores_df():
+    """Creates a sample DataFrame for the scores file."""
     data = {
         'Person': ['Indicator Text', 'EO1'],
         'Adaptability': ['Adaptability', 4],
@@ -54,20 +51,31 @@ def get_sample_df():
     }
     return pd.DataFrame(data)
 
+def get_sample_comments_df():
+    """Creates a sample DataFrame for the comments file."""
+    data = {
+        'Person Code': ['EO1', 'EO1', 'E32', 'E32'],
+        'Comments': [
+            'He needs to be more vocal in leadership meetings.',
+            'His project planning documents are very detailed and helpful, but he sometimes misses the bigger picture on resource allocation.',
+            'A bit quiet, but very reliable once a task is assigned.',
+            'Would like to see him present his ideas with more confidence to senior stakeholders.'
+        ]
+    }
+    return pd.DataFrame(data)
+
+
 def df_to_excel_bytes(df):
     """Converts a DataFrame to an in-memory Excel file (bytes)."""
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Template')
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
     output.seek(0)
     return output.getvalue()
 
 
-def get_master_prompt():
-    """
-    Returns the final, calibrated master prompt architecture.
-    This includes all rules, persona, logic, and exemplars.
-    """
+def get_score_summary_prompt():
+    """Returns the prompt for generating the main summary from scores."""
     return """
 **## Persona**
 You are an expert talent management analyst and a master writer. Your style is formal, professional, objective, and constructive. You synthesize quantitative performance data into a rich, qualitative, behavioral-focused narrative. You are writing for a male individual, using the third person (`he`/`his`/`him`).
@@ -76,41 +84,14 @@ You are an expert talent management analyst and a master writer. Your style is f
 Generate a sophisticated, multi-paragraph performance summary based on scores from 8 leadership competencies. The summary must be generated in both English and Arabic.
 
 **## Input Data Profile**
-You will receive a data set for one individual containing:
-1.  **8 Competency Names** and their average scores.
-2.  **4 Indicator Scores and Texts** for each competency.
+You will receive a data set for one individual containing: 8 Competency Names and their average scores, plus 4 Indicator Scores and Texts for each competency.
 
 **## Core Logic & Execution Flow**
-
-**Step 1: Data Analysis & Categorization**
-1.  Categorize each of the 8 competencies based on its average score:
-    * **Clear Strength:** Average score >= 4.0
-    * **Potential Strength:** Average score between 2.6 and 3.9
-    * **Development Area:** Average score <= 2.5
-
-**Step 2: Summary Construction (Advanced Narrative Technique)**
-1.  **Mandatory Opening:** The English summary MUST begin with this exact text: "Your participation in the assessment center provided insight into how you demonstrate the leadership competencies in action. The feedback below highlights observed strengths and opportunities for development to support your continued growth." The Arabic summary should use an equivalent professional opening.
-
-2.  **Paragraph 1 (Clear Strengths):**
-    * **Opening Sentence:** Start this paragraph with a sentence like "You display clear strengths in several areas of leadership."
-    * **Synthesize and Elaborate:** For each "Clear Strength" competency, you must:
-        * **Introduce Variedly:** Use varied phrasing like "In relation to **[Competency Name]**...", "Similarly, your performance in **[Competency Name]** highlights...", or "Another area of strength is **[Competency Name]**, where you excel in...". **Bold the competency name.**
-        * **Weave a Narrative:** Do not just list indicators. **Synthesize multiple high-scoring indicators** into a single, flowing sentence or two that tells a story about that competency.
-        * **Show Impact:** Add a concluding phrase that describes the *impact* or *reflection* of these behaviors, using phrases like "This reflects your capacity to...", "These behaviors underscore your ability to...", or "This demonstrates your commitment to...".
-    * **Ensure Coverage:** You MUST address all competencies in this category.
-
-3.  **Paragraph 2 (Potential Strengths):**
-    * **Opening Sentence:** Start this paragraph with a sentence like "In addition, there are areas where you demonstrate potential strengths that can be further leveraged."
-    * **Address Nuance:** For each "Potential Strength" competency:
-        * **Introduce Variedly:** Use phrases like "In **[Competency Name]**...", "Similarly, in **[Competency Name]**...". **Bold the competency name.**
-        * **Describe the Positive:** First, synthesize the positive aspects by paraphrasing the higher-scoring indicators.
-        * **Introduce the Gap:** Then, create a smooth transition to the development area within the same competency using phrases like "However, there is room to enhance...", "yet there is scope to more systematically...", or "but there is potential to...". Paraphrase the lower-scoring indicators to explain the gap.
-    * **Ensure Coverage:** You MUST address all competencies in this category.
-
-4.  **Paragraph 3 (Development Areas):**
-    * **Conditional Inclusion:** This paragraph should only be included if there are competencies in the "Development Area" category.
-    * **Introduce Broadly:** Start this paragraph with a sentence like "In relation to the development areas, **[First Competency Name]** emerged as an area for improvement."
-    * **Elaborate on the "Why":** For each "Development Area" competency, synthesize the lowest-scoring indicators to explain the development need. Conclude with a forward-looking statement like "Strengthening these aspects will help you achieve greater consistency in..."
+1.  **Categorization:** Categorize competencies based on average score: Clear Strength (>= 4.0), Potential Strength (2.6-3.9), Development Area (<= 2.5).
+2.  **Mandatory Opening:** The English summary MUST begin with: "Your participation in the assessment center provided insight into how you demonstrate the leadership competencies in action. The feedback below highlights observed strengths and opportunities for development to support your continued growth." The Arabic summary needs an equivalent professional opening.
+3.  **Paragraph 1 (Clear Strengths):** Start with "You display clear strengths in several areas of leadership." Then, for each "Clear Strength" competency, introduce it variedly (e.g., "In relation to **[Competency Name]**..."), synthesize multiple high-scoring indicators into a narrative, and add a concluding phrase about the impact.
+4.  **Paragraph 2 (Potential Strengths):** Start with "In addition, there are areas where you demonstrate potential strengths that can be further leveraged." For each "Potential Strength" competency, introduce it, describe the positive aspects, then create a smooth transition ("However, there is room to...") to explain the development gap using the lower-scoring indicators.
+5.  **Paragraph 3 (Development Areas):** If applicable, start with "In relation to the development areas, **[First Competency Name]** emerged as an area for improvement." Synthesize the lowest-scoring indicators to explain the "why" and conclude with a forward-looking statement.
 
 **## Writing Standards & Constraints**
 * **Word Count:** Maximum 400 words total per language (excluding the mandatory opening).
@@ -118,135 +99,197 @@ You will receive a data set for one individual containing:
 * **Behavioral Focus:** No technical or industry-specific jargon.
 
 **## Bilingual Generation Mandate**
-* **Primary Task:** Generate the summary in **both English and Arabic**, following the same advanced narrative structure.
-* **Arabic Language Standards:** Must be crafted with the nuance and flow of a native Arabic-speaking HR professional, not a literal translation.
+* Generate in **both English and Arabic**, following the same advanced narrative structure and professional tone.
 
 ---
-**## TASK: GENERATE SUMMARY FOR THE FOLLOWING PERSON**
+**## TASK: GENERATE SCORE-BASED SUMMARY FOR THE FOLLOWING PERSON**
 """
 
-def generate_summary_from_llm(person_data_prompt):
-    """
-    This is a placeholder function to simulate a call to a powerful Large Language Model (LLM).
-    It returns a hardcoded example that matches the updated, more nuanced prompt format.
-    """
-    english_summary = """Your participation in the assessment center provided insight into how you demonstrate the leadership competencies in action. The feedback below highlights observed strengths and opportunities for development to support your continued growth.
+def get_comment_summary_prompt():
+    """Returns the new, specialized prompt for summarizing qualitative comments."""
+    return """
+**## Persona**
+You are a discerning talent management analyst, skilled at synthesizing raw, unstructured feedback into a concise and professional summary. Your focus is purely on constructive, developmental themes.
 
-You display clear strengths in several areas of leadership. In relation to **Adaptability**, you consistently demonstrate the ability to navigate and lead teams through change, learn from experiences, and maintain resilience in challenging situations. This reflects your capacity to foster innovation and maintain team morale during periods of ambiguity. Similarly, your performance in **Decision Making and Takes Accountability** highlights your ability to make assertive, informed decisions, even under pressure. You exhibit confidence in articulating your decisions, evaluate risks effectively, and align your choices with organizational goals and values. Another area of strength is **Strategic Thinking**, where you excel in monitoring industry trends, identifying opportunities, and translating strategic goals into actionable plans. These behaviors underscore your ability to align organizational objectives with long-term success.
+**## Core Objective**
+Analyze a list of raw comments for an individual and generate a single, final summary paragraph. This paragraph should be no more than 50 words. The summary must be in both English and Arabic.
 
-In addition, there are areas where you demonstrate potential strengths that can be further leveraged. In **Effective Communication and Influence**, you effectively articulate ideas and influence others toward collaborative outcomes. However, there is room to enhance your listening skills to ensure all team members feel fully heard and understood. Similarly, in **Initiative**, you show a strong commitment to pursuing opportunities and achieving results, but there is potential to push boundaries further and consistently exceed expectations. In **Inspirational Leadership**, you create a sense of vision and purpose for your team and adapt your leadership style to different situations. However, there is an opportunity to deepen your emotional awareness and proactively manage individual team dynamics to maximize contributions. In **Capability Development**, you engage in coaching and delegation effectively, yet there is scope to more systematically identify and nurture high-potential talent to meet future organizational needs.
+**## Input Data Profile**
+1.  **The Main Report:** The already-written, score-based summary.
+2.  **Raw Comments:** A list of verbatim comments from colleagues.
 
-In relation to the development areas, **Systematic Analysis and Planning** emerged as an area for improvement. While you demonstrate some ability to manage projects and create action plans, there is room to enhance your resource allocation skills and establish more robust metrics to evaluate progress. Strengthening these aspects will help you achieve greater consistency in delivering high-quality results and aligning plans with strategic priorities.
+**## Core Logic & Execution Flow**
+1.  **Filter Comments:** First, you MUST filter the raw comments based on these rules:
+    * **IGNORE:** Offensive, irrelevant, purely personal, or overly judgmental comments.
+    * **FOCUS ON:** Developmental aspects, constructive criticism, and actionable feedback.
+2.  **Check for Contradictions:** **This is the most important rule.** Compare the themes in the filtered comments with the main report provided. If a comment's theme directly contradicts a "Clear Strength" identified in the main report, you MUST ignore that comment. The main report is the primary source of truth.
+3.  **Synthesize Themes:** From the remaining, non-contradictory comments, identify 1-2 key developmental themes. If the comments are varied, select the most impactful points.
+4.  **Draft the Summary:** Write a single paragraph that summarizes these themes.
+    * **Introduction:** Start with a phrase like "Additionally, feedback suggests..." or "Further feedback indicates...".
+    * **Body:** Concisely state the key themes. Rephrase any judgmental language into professional, developmental terms (e.g., "He is too quiet" becomes "he would benefit from increasing his visibility in senior forums.").
+5.  **Final Polish:** Ensure the paragraph flows naturally when appended to the main report.
+
+**## Writing Standards & Constraints**
+* **Word Count:** Maximum 50 words per language.
+* **Tone:** Professional, constructive, and forward-looking.
+* **Consistency:** The summary MUST NOT contradict the main report.
+
+**## Bilingual Generation Mandate: English and Arabic**
+* **Primary Task:** Generate the summary in **both English and Arabic**, following all rules above.
+* **Arabic Language Standards:**
+    * **Nuance and Professionalism:** The Arabic translation must not be a literal, word-for-word translation. It must be crafted with the nuance, formality, and flow of a native Arabic-speaking HR professional.
+    * **Tone:** The tone should be formal, respectful, and constructive, using professional terminology appropriate for a corporate setting.
+    * **Contextual Integrity:** Ensure the meaning and intent of the developmental feedback are preserved and culturally aligned.
+
+---
+**## TASK: ANALYZE THE FOLLOWING COMMENTS AND GENERATE A 50-WORD SUMMARY PARAGRAPH TO APPEND TO THE MAIN REPORT PROVIDED.**
 """
 
-    arabic_summary = """نشكرك على مشاركتك في مركز التقييم، مما أتاح لنا رؤية متعمقة لكيفية تجسيدك للكفاءات القيادية عمليًا. تسلط الملاحظات التالية الضوء على نقاط القوة التي تم رصدها وفرص التطوير المتاحة لدعم نموك المستمر.
-
-تُظهر نقاط قوة واضحة في عدة مجالات قيادية. فيما يتعلق بـ**القدرة على التكيف**، فإنك تبرهن باستمرار على قدرتك على قيادة الفرق خلال فترات التغيير، والتعلم من التجارب، والحفاظ على المرونة في المواقف الصعبة. وهذا يعكس قدرتك على تعزيز الابتكار والحفاظ على معنويات الفريق في أوقات الغموض. وبالمثل، يُبرز أداؤك في **اتخاذ القرار وتحمل المسؤولية** قدرتك على اتخاذ قرارات حاسمة ومستنيرة، حتى تحت الضغط. كما أنك تُظهر ثقة في التعبير عن قراراتك، وتقييم المخاطر بفعالية، ومواءمة خياراتك مع أهداف المنظمة وقيمها. ومن نقاط القوة الأخرى **التفكير الاستراتيجي**، حيث تتفوق في متابعة اتجاهات القطاع، وتحديد الفرص، وترجمة الأهداف الاستراتيجية إلى خطط قابلة للتنفيذ، مما يؤكد قدرتك على مواءمة أهداف المنظمة مع النجاح على المدى الطويل.
-
-بالإضافة إلى ذلك، هناك مجالات تُظهر فيها نقاط قوة كامنة يمكن تعزيزها. في **التواصل الفعال والتأثير**، تُعبر عن الأفكار بفعالية وتؤثر في الآخرين لتحقيق نتائج تعاونية، ولكن هناك مجال لتعزيز مهارات الاستماع لديك لضمان شعور جميع أعضاء الفريق بأنهم مسموعون ومفهومون تمامًا. وبالمثل، في **المبادرة**، تُظهر التزامًا قويًا باستثمار الفرص وتحقيق النتائج، ولكن هناك إمكانية لدفع الحدود إلى أبعد من ذلك وتجاوز التوقعات باستمرار. في **القيادة الملهمة**، تنجح في خلق رؤية وهدف لفريقك وتكييف أسلوب قيادتك مع المواقف المختلفة، ومع ذلك، هناك فرصة لتعميق وعيك العاطفي وإدارة ديناميكيات الفريق بشكل استباقي لتحقيق أقصى قدر من المساهمات. في **تطوير القدرات**، تمارس التدريب والتفويض بفعالية، ولكن هناك مجال لتحديد ورعاية المواهب الواعدة بشكل أكثر منهجية لتلبية احتياجات المنظمة المستقبلية.
-
-فيما يتعلق بمجالات التطوير، برز **التحليل المنهجي والتخطيط** كأحد الجوانب التي تتطلب تحسينًا. فبينما تُظهر بعض القدرة على إدارة المشاريع ووضع خطط العمل، هناك مجال لتعزيز مهاراتك في تخصيص الموارد ووضع مقاييس أكثر قوة لتقييم التقدم. إن تعزيز هذه الجوانب سيساعدك على تحقيق قدر أكبر من الاتساق في تقديم نتائج عالية الجودة ومواءمة الخطط مع الأولويات الاستراتيجية.
-"""
-    return english_summary, arabic_summary
-
-
-def process_data(df):
+def generate_summary_from_llm(prompt, is_comment_summary=False):
     """
-    Processes the uploaded dataframe to generate summaries for each person.
+    Placeholder function to simulate an LLM call.
+    It returns a different hardcoded example based on the task.
     """
-    master_prompt = get_master_prompt()
+    if is_comment_summary:
+        english_comment_summary = """Additionally, feedback suggests he could enhance his executive presence by projecting more confidence when presenting to senior stakeholders and increasing his visibility in key meetings. This will help ensure his valuable contributions are fully recognized."""
+        arabic_comment_summary = """بالإضافة إلى ذلك، تشير الملاحظات إلى أنه يمكنه تعزيز حضوره التنفيذي من خلال إظهار المزيد من الثقة عند التقديم لكبار أصحاب المصلحة وزيادة حضوره في الاجتماعات الرئيسية. سيساعد ذلك في ضمان تقدير مساهماته القيمة بشكل كامل."""
+        return english_comment_summary, arabic_comment_summary
+    else:
+        # Score-based summary
+        english_summary = """Your participation in the assessment center provided insight into how you demonstrate the leadership competencies in action. The feedback below highlights observed strengths and opportunities for development to support your continued growth.\n\nYou display clear strengths in several areas of leadership. In relation to **Adaptability**, you consistently demonstrate the ability to navigate and lead teams through change, learn from experiences, and maintain resilience in challenging situations. This reflects your capacity to foster innovation and maintain team morale during periods of ambiguity. Similarly, your performance in **Decision Making and Takes Accountability** highlights your ability to make assertive, informed decisions, even under pressure. You exhibit confidence in articulating your decisions, evaluate risks effectively, and align your choices with organizational goals and values. Another area of strength is **Strategic Thinking**, where you excel in monitoring industry trends, identifying opportunities, and translating strategic goals into actionable plans. These behaviors underscore your ability to align organizational objectives with long-term success.\n\nIn addition, there are areas where you demonstrate potential strengths that can be further leveraged. In **Effective Communication and Influence**, you effectively articulate ideas and influence others toward collaborative outcomes. However, there is room to enhance your listening skills to ensure all team members feel fully heard and understood. Similarly, in **Initiative**, you show a strong commitment to pursuing opportunities and achieving results, but there is potential to push boundaries further and consistently exceed expectations. In **Inspirational Leadership**, you create a sense of vision and purpose for your team and adapt your leadership style to different situations. However, there is an opportunity to deepen your emotional awareness and proactively manage individual team dynamics to maximize contributions. In **Capability Development**, you engage in coaching and delegation effectively, yet there is scope to more systematically identify and nurture high-potential talent to meet future organizational needs.\n\nIn relation to the development areas, **Systematic Analysis and Planning** emerged as an area for improvement. While you demonstrate some ability to manage projects and create action plans, there is room to enhance your resource allocation skills and establish more robust metrics to evaluate progress. Strengthening these aspects will help you achieve greater consistency in delivering high-quality results and aligning plans with strategic priorities."""
+        arabic_summary = """نشكرك على مشاركتك في مركز التقييم، مما أتاح لنا رؤية متعمقة لكيفية تجسيدك للكفاءات القيادية عمليًا. تسلط الملاحظات التالية الضوء على نقاط القوة التي تم رصدها وفرص التطوير المتاحة لدعم نموك المستمر.\n\nتُظهر نقاط قوة واضحة في عدة مجالات قيادية. فيما يتعلق بـ**القدرة على التكيف**، فإنك تبرهن باستمرار على قدرتك على قيادة الفرق خلال فترات التغيير، والتعلم من التجارب، والحفاظ على المرونة في المواقف الصعبة. وهذا يعكس قدرتك على تعزيز الابتكار والحفاظ على معنويات الفريق في أوقات الغموض. وبالمثل، يُبرز أداؤك في **اتخاذ القرار وتحمل المسؤولية** قدرتك على اتخاذ قرارات حاسمة ومستنيرة، حتى تحت الضغط. كما أنك تُظهر ثقة في التعبير عن قراراتك، وتقييم المخاطر بفعالية، ومواءمة خياراتك مع أهداف المنظمة وقيمها. ومن نقاط القوة الأخرى **التفكير الاستراتيجي**، حيث تتفوق في متابعة اتجاهات القطاع، وتحديد الفرص، وترجمة الأهداف الاستراتيجية إلى خطط قابلة للتنفيذ، مما يؤكد قدرتك على مواءمة أهداف المنظمة مع النجاح على المدى الطويل.\n\nبالإضافة إلى ذلك، هناك مجالات تُظهر فيها نقاط قوة كامنة يمكن تعزيزها. في **التواصل الفعال والتأثير**، تُعبر عن الأفكار بفعالية وتؤثر في الآخرين لتحقيق نتائج تعاونية، ولكن هناك مجال لتعزيز مهارات الاستماع لديك لضمان شعور جميع أعضاء الفريق بأنهم مسموعون ومفهومون تمامًا. وبالمثل، في **المبادرة**، تُظهر التزامًا قويًا باستثمار الفرص وتحقيق النتائج، ولكن هناك إمكانية لدفع الحدود إلى أبعد من ذلك وتجاوز التوقعات باستمرار. في **القيادة الملهمة**، تنجح في خلق رؤية وهدف لفريقك وتكييف أسلوب قيادتك مع المواقف المختلفة، ومع ذلك، هناك فرصة لتعميق وعيك العاطفي وإدارة ديناميكيات الفريق بشكل استباقي لتحقيق أقصى قدر من المساهمات. في **تطوير القدرات**، تمارس التدريب والتفويض بفعالية، ولكن هناك مجال لتحديد ورعاية المواهب الواعدة بشكل أكثر منهجية لتلبية احتياجات المنظمة المستقبلية.\n\nفيما يتعلق بمجالات التطوير، برز **التحليل المنهجي والتخطيط** كأحد الجوانب التي تتطلب تحسينًا. فبينما تُظهر بعض القدرة على إدارة المشاريع ووضع خطط العمل، هناك مجال لتعزيز مهاراتك في تخصيص الموارد ووضع مقاييس أكثر قوة لتقييم التقدم. إن تعزيز هذه الجوانب سيساعدك على تحقيق قدر أكبر من الاتساق في تقديم نتائج عالية الجودة ومواءمة الخطط مع الأولويات الاستراتيجية."""
+        return english_summary, arabic_summary
+
+def process_scores(df):
+    """Processes the scores dataframe to generate initial summaries."""
     results = []
-
-    # The second row contains the indicator text definitions
-    indicator_definitions = df.iloc[0] 
-    
-    # Data for actual people starts from the third row
+    indicator_definitions = df.iloc[0]
     people_data = df.iloc[1:]
+    score_prompt_template = get_score_summary_prompt()
 
-    progress_bar = st.progress(0)
-    total_people = len(people_data)
-    for i, (index, row) in enumerate(people_data.iterrows()):
+    for _, row in people_data.iterrows():
         person_name = row.iloc[0]
-        
-        if pd.isna(person_name) or 'ERROR' in str(row.iloc[1]):
-            continue
+        if pd.isna(person_name) or 'ERROR' in str(row.iloc[1]): continue
 
-        st.write(f"Generating summary for {person_name}...")
-        
         person_data_prompt = f"**Person's Name:** {person_name}\n\n**Competency Data:**\n"
-        
-        for comp_idx in range(8):
-            comp_col_index = 1 + (comp_idx * 5)
-            competency_name = df.columns[comp_col_index]
-            person_data_prompt += f"\n**- Competency: {competency_name}** (Average Score: {row[comp_col_index]})\n"
-            for ind_idx in range(4):
-                indicator_col_index = comp_col_index + 1 + ind_idx
-                indicator_text = indicator_definitions[indicator_col_index]
-                indicator_score = row[indicator_col_index]
-                person_data_prompt += f"  - Indicator: '{indicator_text}' | Score: {indicator_score}\n"
-        
-        full_prompt = master_prompt + person_data_prompt
-        english_summary, arabic_summary = generate_summary_from_llm(full_prompt)
+        for i in range(8):
+            comp_col_index = 1 + (i * 5)
+            person_data_prompt += f"\n**- Competency: {df.columns[comp_col_index]}** (Average Score: {row[comp_col_index]})\n"
+            for j in range(4):
+                ind_col_index = comp_col_index + 1 + j
+                person_data_prompt += f"  - Indicator: '{indicator_definitions[ind_col_index]}' | Score: {row[ind_col_index]}\n"
 
-        results.append({
-            "Person": person_name,
-            "English Summary": english_summary,
-            "Arabic Summary": arabic_summary
-        })
-        progress_bar.progress((i + 1) / total_people)
-
+        full_prompt = score_prompt_template + person_data_prompt
+        eng_summary, ar_summary = generate_summary_from_llm(full_prompt, is_comment_summary=False)
+        results.append({"Person": person_name, "English Summary": eng_summary, "Arabic Summary": ar_summary})
     return pd.DataFrame(results)
+
+def process_comments_and_append(results_df, comments_df):
+    """Processes comments and appends them to the existing summaries."""
+    comment_prompt_template = get_comment_summary_prompt()
+    
+    for i, row in results_df.iterrows():
+        person_code = row['Person']
+        main_eng_summary = row['English Summary']
+        
+        # Filter comments for the current person
+        person_comments = comments_df[comments_df['Person Code'] == person_code]['Comments'].tolist()
+
+        if person_comments:
+            # Construct the prompt for comment summarization
+            comment_data_prompt = f"**Main Report:**\n{main_eng_summary}\n\n**Raw Comments to Summarize:**\n- {'\n- '.join(person_comments)}"
+            full_prompt = comment_prompt_template + comment_data_prompt
+            
+            # Generate comment summary
+            eng_comment_summary, ar_comment_summary = generate_summary_from_llm(full_prompt, is_comment_summary=True)
+
+            # Append the new paragraph
+            results_df.at[i, 'English Summary'] += f"\n\n{eng_comment_summary}"
+            results_df.at[i, 'Arabic Summary'] += f"\n\n{ar_comment_summary}"
+            
+    return results_df
 
 # --- Streamlit App UI ---
 
 st.set_page_config(layout="wide")
-st.title("📄 Performance Summary Generator")
+st.title("📄 Integrated Performance Summary Generator")
 
-# --- ADDED: Sample File Download Section ---
-st.markdown("### 1. Download Sample Template")
-st.write("If you're unsure about the file format, download this sample template.")
-sample_df = get_sample_df()
-sample_excel_bytes = df_to_excel_bytes(sample_df)
-st.download_button(
-    label="📥 Download Sample Excel Template",
-    data=sample_excel_bytes,
-    file_name="sample_summary_template.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-# --- END: Sample File Download Section ---
+# --- Step 1: Score File ---
+st.markdown("### 1. Upload Quantitative Scores File")
+with st.expander("Show Score File Instructions"):
+    st.write("Upload an Excel file with competency scores. The first row should be headers, the second row must contain indicator definitions, and subsequent rows should have person IDs and scores.")
+    sample_scores_df = get_sample_scores_df()
+    st.download_button(
+        label="📥 Download Scores Template",
+        data=df_to_excel_bytes(sample_scores_df),
+        file_name="sample_scores_template.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
-st.markdown("---")
-st.markdown("### 2. Upload Your Data File")
-uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
+uploaded_scores_file = st.file_uploader("Choose a scores file", type="xlsx", key="scores_uploader")
 
-if uploaded_file is not None:
+if uploaded_scores_file:
     try:
-        df = pd.read_excel(uploaded_file, engine='openpyxl')
-        st.success("File uploaded successfully! Here's a preview:")
-        st.dataframe(df.head())
-
-        st.markdown("### 3. Generate Summaries")
-        if st.button("Generate Summaries", key="generate"):
-            with st.spinner("Analyzing data and generating summaries... This may take a moment."):
-                results_df = process_data(df)
-                st.success("Summaries generated successfully!")
+        scores_df = pd.read_excel(uploaded_scores_file, engine='openpyxl')
+        if st.button("Generate Summaries from Scores", key="generate_scores"):
+            with st.spinner("Analyzing scores and generating summaries..."):
+                results_df = process_scores(scores_df)
                 st.session_state['results_df'] = results_df
-
+                st.success("Score-based summaries generated successfully!")
     except Exception as e:
-        st.error(f"An error occurred: {e}")
-        st.error("Please ensure the file is a valid Excel file and the format matches the sample template.")
+        st.error(f"Error processing scores file: {e}")
 
+# --- Step 2: Display initial results and offer comment upload ---
 if 'results_df' in st.session_state:
-    results_df = st.session_state['results_df']
-    if not results_df.empty:
-        st.markdown("---")
-        st.markdown("### 4. View and Download Results")
-        st.dataframe(results_df)
+    st.markdown("---")
+    st.markdown("### 2. Score-Based Summaries (Preview)")
+    st.dataframe(st.session_state['results_df'].head())
 
-        results_excel_bytes = df_to_excel_bytes(results_df)
+    st.markdown("---")
+    st.markdown("### 3. (Optional) Upload Qualitative Comments File")
+    with st.expander("Show Comments File Instructions"):
+        st.write("To enrich the report, upload an Excel file with raw comments. It should have two columns: 'Person Code' and 'Comments'.")
+        sample_comments_df = get_sample_comments_df()
         st.download_button(
-            label="📥 Download All Results as Excel",
-            data=results_excel_bytes,
-            file_name="generated_summaries.xlsx",
+            label="📥 Download Comments Template",
+            data=df_to_excel_bytes(sample_comments_df),
+            file_name="sample_comments_template.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+    uploaded_comments_file = st.file_uploader("Choose a comments file", type="xlsx", key="comments_uploader")
+
+    if uploaded_comments_file:
+        try:
+            comments_df = pd.read_excel(uploaded_comments_file, engine='openpyxl')
+            if st.button("Incorporate Comments into Summaries", key="generate_comments"):
+                with st.spinner("Analyzing comments and updating summaries..."):
+                    # Make a copy to avoid modifying the session state directly during processing
+                    current_results = st.session_state['results_df'].copy()
+                    final_df = process_comments_and_append(current_results, comments_df)
+                    st.session_state['final_df'] = final_df
+                    st.success("Comments incorporated successfully!")
+        except Exception as e:
+            st.error(f"Error processing comments file: {e}")
+
+# --- Step 3: Display final results and download ---
+if 'final_df' in st.session_state:
+    st.markdown("---")
+    st.markdown("### 4. Final Integrated Report")
+    st.dataframe(st.session_state['final_df'])
+    st.download_button(
+        label="📥 Download Final Integrated Report",
+        data=df_to_excel_bytes(st.session_state['final_df']),
+        file_name="final_integrated_summaries.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+elif 'results_df' in st.session_state and 'final_df' not in st.session_state:
+    # Offer download for score-based summary if comments are not added
+    st.markdown("---")
+    st.markdown("### 4. Download Score-Based Report")
+    st.download_button(
+        label="📥 Download Score-Based Report",
+        data=df_to_excel_bytes(st.session_state['results_df']),
+        file_name="score_based_summaries.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
