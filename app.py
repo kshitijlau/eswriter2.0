@@ -52,9 +52,6 @@ def get_sample_df():
         'Systematic Analysis and Planning 3': ["Effectively allocates resources (time, personnel, budget)...", 2.5],
         'Systematic Analysis and Planning 4': ["Establishes metrics and benchmarks to evaluate progress...", 2.5]
     }
-    # To ensure all columns are created, we can create an empty df with columns and then add data
-    # This is a simplified example; a real one would have all 41 columns.
-    # For this demonstration, we'll create a dataframe from the dictionary.
     return pd.DataFrame(data)
 
 def df_to_excel_bytes(df):
@@ -73,57 +70,56 @@ def get_master_prompt():
     """
     return """
 **## Persona**
-You are an expert talent management analyst. Your writing style is formal, professional, objective, and constructive. You synthesize quantitative performance data into a qualitative, behavioral-focused narrative. You are writing for a male individual, using the third person (`he`/`his`/`him`).
+You are an expert talent management analyst and a master writer. Your style is formal, professional, objective, and constructive. You synthesize quantitative performance data into a rich, qualitative, behavioral-focused narrative. You are writing for a male individual, using the third person (`he`/`his`/`him`).
 
 **## Core Objective**
-Generate a multi-paragraph performance summary based on scores from 8 leadership competencies. The summary must be generated in both English and Arabic.
+Generate a sophisticated, multi-paragraph performance summary based on scores from 8 leadership competencies. The summary must be generated in both English and Arabic.
 
 **## Input Data Profile**
 You will receive a data set for one individual containing:
-1.  **8 Competency Names:** (e.g., Adaptability, Strategic Thinking, etc.).
-2.  **Indicator Scores:** Each competency has 4 underlying indicators, each with a score from 1 to 5.
-3.  **Indicator Text:** The specific behavioral description for each indicator.
+1.  **8 Competency Names** and their average scores.
+2.  **4 Indicator Scores and Texts** for each competency.
 
 **## Core Logic & Execution Flow**
 
 **Step 1: Data Analysis & Categorization**
-1.  For each of the 8 competencies, calculate the average score of its 4 indicators.
-2.  Categorize each competency based on its average score:
+1.  Categorize each of the 8 competencies based on its average score:
     * **Clear Strength:** Average score >= 4.0
     * **Potential Strength:** Average score between 2.6 and 3.9
     * **Development Area:** Average score <= 2.5
 
-**Step 2: Summary Construction**
+**Step 2: Summary Construction (Advanced Narrative Technique)**
 1.  **Mandatory Opening:** The English summary MUST begin with this exact text: "Your participation in the assessment center provided insight into how you demonstrate the leadership competencies in action. The feedback below highlights observed strengths and opportunities for development to support your continued growth." The Arabic summary should use an equivalent professional opening.
+
 2.  **Paragraph 1 (Clear Strengths):**
-    * Start this paragraph with a sentence like "You display clear strengths in several areas of leadership."
-    * Address ONLY the competencies categorized as "Clear Strength".
-    * For each, introduce the competency using phrases like "In relation to **[Competency Name]**..." or "Similarly, your performance in **[Competency Name]** highlights...". **The competency name must be bolded.**
-    * Describe the strength by paraphrasing the text of its highest-scoring indicators.
+    * **Opening Sentence:** Start this paragraph with a sentence like "You display clear strengths in several areas of leadership."
+    * **Synthesize and Elaborate:** For each "Clear Strength" competency, you must:
+        * **Introduce Variedly:** Use varied phrasing like "In relation to **[Competency Name]**...", "Similarly, your performance in **[Competency Name]** highlights...", or "Another area of strength is **[Competency Name]**, where you excel in...". **Bold the competency name.**
+        * **Weave a Narrative:** Do not just list indicators. **Synthesize multiple high-scoring indicators** into a single, flowing sentence or two that tells a story about that competency.
+        * **Show Impact:** Add a concluding phrase that describes the *impact* or *reflection* of these behaviors, using phrases like "This reflects your capacity to...", "These behaviors underscore your ability to...", or "This demonstrates your commitment to...".
+    * **Ensure Coverage:** You MUST address all competencies in this category.
+
 3.  **Paragraph 2 (Potential Strengths):**
-    * Start this paragraph with a sentence like "In addition, there are areas where you demonstrate potential strengths that can be further leveraged."
-    * Address ONLY the competencies categorized as "Potential Strength".
-    * For each, introduce the competency (e.g., "In **[Competency Name]**..."). **The competency name must be bolded.**
-    * First, describe the positive aspects by paraphrasing the higher-scoring indicators.
-    * Then, introduce the growth area within that same competency using phrases like "However, there is room to enhance..." or "yet there is scope to more systematically...". Paraphrase the lower-scoring indicators.
+    * **Opening Sentence:** Start this paragraph with a sentence like "In addition, there are areas where you demonstrate potential strengths that can be further leveraged."
+    * **Address Nuance:** For each "Potential Strength" competency:
+        * **Introduce Variedly:** Use phrases like "In **[Competency Name]**...", "Similarly, in **[Competency Name]**...". **Bold the competency name.**
+        * **Describe the Positive:** First, synthesize the positive aspects by paraphrasing the higher-scoring indicators.
+        * **Introduce the Gap:** Then, create a smooth transition to the development area within the same competency using phrases like "However, there is room to enhance...", "yet there is scope to more systematically...", or "but there is potential to...". Paraphrase the lower-scoring indicators to explain the gap.
+    * **Ensure Coverage:** You MUST address all competencies in this category.
+
 4.  **Paragraph 3 (Development Areas):**
-    * This paragraph should only be included if there are competencies in the "Development Area" category.
-    * Start this paragraph with a sentence like "In relation to the development areas, **[Competency Name]** emerged as an area for improvement."
-    * Address ONLY the "Development Area" competencies.
-    * Describe the development need by paraphrasing the text of the lowest-scoring indicators.
+    * **Conditional Inclusion:** This paragraph should only be included if there are competencies in the "Development Area" category.
+    * **Introduce Broadly:** Start this paragraph with a sentence like "In relation to the development areas, **[First Competency Name]** emerged as an area for improvement."
+    * **Elaborate on the "Why":** For each "Development Area" competency, synthesize the lowest-scoring indicators to explain the development need. Conclude with a forward-looking statement like "Strengthening these aspects will help you achieve greater consistency in..."
 
 **## Writing Standards & Constraints**
 * **Word Count:** Maximum 400 words total per language (excluding the mandatory opening).
-* **Source Fidelity:** Base all statements *strictly* on the indicator language. Do not add information or make assumptions.
-* **Behavioral Focus:** Do not use technical or industry-specific jargon. The summary must be purely behavioral.
-* **No Actions:** Describe the strengths and development areas only. DO NOT suggest specific development actions.
+* **Source Fidelity:** Base all statements *strictly* on the indicator language.
+* **Behavioral Focus:** No technical or industry-specific jargon.
 
-**## Bilingual Generation Mandate: English and Arabic**
-* **Primary Task:** Generate the summary in **both English and Arabic**, following the same structure and tone.
-* **Arabic Language Standards:**
-    * **Nuance and Professionalism:** The Arabic translation must be crafted with the nuance and flow of a native Arabic-speaking HR professional, not a literal translation.
-    * **Tone:** Formal, respectful, and constructive, using professional terminology appropriate for a corporate setting.
-* **Output Format:** Provide the English summary first, followed by the Arabic summary.
+**## Bilingual Generation Mandate**
+* **Primary Task:** Generate the summary in **both English and Arabic**, following the same advanced narrative structure.
+* **Arabic Language Standards:** Must be crafted with the nuance and flow of a native Arabic-speaking HR professional, not a literal translation.
 
 ---
 **## TASK: GENERATE SUMMARY FOR THE FOLLOWING PERSON**
@@ -136,20 +132,20 @@ def generate_summary_from_llm(person_data_prompt):
     """
     english_summary = """Your participation in the assessment center provided insight into how you demonstrate the leadership competencies in action. The feedback below highlights observed strengths and opportunities for development to support your continued growth.
 
-You display clear strengths in several areas of leadership. In relation to **Decision Making and Takes Accountability**, you exhibit confidence in articulating your decisions and effectively evaluate risks. Another area of strength is **Adaptability**, where you consistently navigate teams through change and maintain resilience.
+You display clear strengths in several areas of leadership. In relation to **Adaptability**, you consistently demonstrate the ability to navigate and lead teams through change, learn from experiences, and maintain resilience in challenging situations. This reflects your capacity to foster innovation and maintain team morale during periods of ambiguity. Similarly, your performance in **Decision Making and Takes Accountability** highlights your ability to make assertive, informed decisions, even under pressure. You exhibit confidence in articulating your decisions, evaluate risks effectively, and align your choices with organizational goals and values. Another area of strength is **Strategic Thinking**, where you excel in monitoring industry trends, identifying opportunities, and translating strategic goals into actionable plans. These behaviors underscore your ability to align organizational objectives with long-term success.
 
-In addition, there are areas where you demonstrate potential strengths that can be further leveraged. In **Initiative**, you show a strong commitment to pursuing opportunities, yet there is potential to more consistently set ambitious objectives to exceed expectations. Similarly, in **Effective Communication and Influence**, you articulate ideas well, however, there is room to enhance your listening skills to ensure all team members feel fully heard. For **Inspirational Leadership**, you are effective at creating a sense of vision, but there is an opportunity to deepen your emotional awareness to better maximize your team's contributions.
+In addition, there are areas where you demonstrate potential strengths that can be further leveraged. In **Effective Communication and Influence**, you effectively articulate ideas and influence others toward collaborative outcomes. However, there is room to enhance your listening skills to ensure all team members feel fully heard and understood. Similarly, in **Initiative**, you show a strong commitment to pursuing opportunities and achieving results, but there is potential to push boundaries further and consistently exceed expectations. In **Inspirational Leadership**, you create a sense of vision and purpose for your team and adapt your leadership style to different situations. However, there is an opportunity to deepen your emotional awareness and proactively manage individual team dynamics to maximize contributions. In **Capability Development**, you engage in coaching and delegation effectively, yet there is scope to more systematically identify and nurture high-potential talent to meet future organizational needs.
 
-In relation to the development areas, **Systematic Analysis and Planning** emerged as an area for improvement. There is room to enhance your resource allocation skills and establish more robust metrics to evaluate progress, which will help in delivering high-quality results more consistently.
+In relation to the development areas, **Systematic Analysis and Planning** emerged as an area for improvement. While you demonstrate some ability to manage projects and create action plans, there is room to enhance your resource allocation skills and establish more robust metrics to evaluate progress. Strengthening these aspects will help you achieve greater consistency in delivering high-quality results and aligning plans with strategic priorities.
 """
 
-    arabic_summary = """نود أن نشكرك على مشاركتك في مركز التقييم، والتي أتاحت لنا فرصة الاطلاع على كيفية تطبيقك للكفاءات القيادية على أرض الواقع. تستعرض الملاحظات أدناه نقاط القوة التي لوحظت وفرص التطوير المتاحة، وذلك بهدف دعم مسيرتك المهنية المستمرة.
+    arabic_summary = """نشكرك على مشاركتك في مركز التقييم، مما أتاح لنا رؤية متعمقة لكيفية تجسيدك للكفاءات القيادية عمليًا. تسلط الملاحظات التالية الضوء على نقاط القوة التي تم رصدها وفرص التطوير المتاحة لدعم نموك المستمر.
 
-تُظهر نقاط قوة واضحة في عدة مجالات قيادية. فيما يتعلق بـ**اتخاذ القرار وتحمل المسؤولية**، فإنك تُبدي ثقة في التعبير عن قراراتك وتقييم المخاطر بفاعلية. كما أن **القدرة على التكيف** تمثل إحدى نقاط قوتك، حيث تقود الفرق بنجاح خلال فترات التغيير وتحافظ على مرونتك.
+تُظهر نقاط قوة واضحة في عدة مجالات قيادية. فيما يتعلق بـ**القدرة على التكيف**، فإنك تبرهن باستمرار على قدرتك على قيادة الفرق خلال فترات التغيير، والتعلم من التجارب، والحفاظ على المرونة في المواقف الصعبة. وهذا يعكس قدرتك على تعزيز الابتكار والحفاظ على معنويات الفريق في أوقات الغموض. وبالمثل، يُبرز أداؤك في **اتخاذ القرار وتحمل المسؤولية** قدرتك على اتخاذ قرارات حاسمة ومستنيرة، حتى تحت الضغط. كما أنك تُظهر ثقة في التعبير عن قراراتك، وتقييم المخاطر بفعالية، ومواءمة خياراتك مع أهداف المنظمة وقيمها. ومن نقاط القوة الأخرى **التفكير الاستراتيجي**، حيث تتفوق في متابعة اتجاهات القطاع، وتحديد الفرص، وترجمة الأهداف الاستراتيجية إلى خطط قابلة للتنفيذ، مما يؤكد قدرتك على مواءمة أهداف المنظمة مع النجاح على المدى الطويل.
 
-بالإضافة إلى ذلك، هناك مجالات تُظهر فيها نقاط قوة كامنة يمكن تعزيزها. في مجال **المبادرة**، تُظهر التزامًا قويًا باستثمار الفرص، ولكن هناك إمكانية لوضع أهداف أكثر طموحًا بشكل مستمر لتجاوز التوقعات. وبالمثل، في **التواصل الفعال والتأثير**، تُعبر عن أفكارك بوضوح، ولكن هناك مجال لتحسين مهارات الاستماع لديك لضمان شعور جميع أعضاء الفريق بأن أصواتهم مسموعة. أما بالنسبة لـ**القيادة الملهمة**، فأنت فعال في خلق رؤية مشتركة، ولكن هناك فرصة لتعميق وعيك العاطفي لتحقيق أقصى استفادة من مساهمات فريقك.
+بالإضافة إلى ذلك، هناك مجالات تُظهر فيها نقاط قوة كامنة يمكن تعزيزها. في **التواصل الفعال والتأثير**، تُعبر عن الأفكار بفعالية وتؤثر في الآخرين لتحقيق نتائج تعاونية، ولكن هناك مجال لتعزيز مهارات الاستماع لديك لضمان شعور جميع أعضاء الفريق بأنهم مسموعون ومفهومون تمامًا. وبالمثل، في **المبادرة**، تُظهر التزامًا قويًا باستثمار الفرص وتحقيق النتائج، ولكن هناك إمكانية لدفع الحدود إلى أبعد من ذلك وتجاوز التوقعات باستمرار. في **القيادة الملهمة**، تنجح في خلق رؤية وهدف لفريقك وتكييف أسلوب قيادتك مع المواقف المختلفة، ومع ذلك، هناك فرصة لتعميق وعيك العاطفي وإدارة ديناميكيات الفريق بشكل استباقي لتحقيق أقصى قدر من المساهمات. في **تطوير القدرات**، تمارس التدريب والتفويض بفعالية، ولكن هناك مجال لتحديد ورعاية المواهب الواعدة بشكل أكثر منهجية لتلبية احتياجات المنظمة المستقبلية.
 
-فيما يتعلق بمجالات التطوير، برز **التحليل المنهجي والتخطيط** كأحد الجوانب التي تتطلب تحسينًا. هناك مجال لتعزيز مهاراتك في تخصيص الموارد ووضع مقاييس أكثر دقة لتقييم التقدم، مما سيساعد في تحقيق نتائج عالية الجودة بشكل أكثر اتساقًا.
+فيما يتعلق بمجالات التطوير، برز **التحليل المنهجي والتخطيط** كأحد الجوانب التي تتطلب تحسينًا. فبينما تُظهر بعض القدرة على إدارة المشاريع ووضع خطط العمل، هناك مجال لتعزيز مهاراتك في تخصيص الموارد ووضع مقاييس أكثر قوة لتقييم التقدم. إن تعزيز هذه الجوانب سيساعدك على تحقيق قدر أكبر من الاتساق في تقديم نتائج عالية الجودة ومواءمة الخطط مع الأولويات الاستراتيجية.
 """
     return english_summary, arabic_summary
 
