@@ -3,257 +3,279 @@ import pandas as pd
 import openai
 import io
 
+# --- Initialize session state ---
+if 'summaries_df' not in st.session_state:
+    st.session_state.summaries_df = None
+
 # --- Helper Function to convert DataFrame to Excel in memory ---
 def to_excel(df):
     """
     Converts a pandas DataFrame to an Excel file in memory (bytes).
-    This function is used to prepare the final output for download.
     """
     output = io.BytesIO()
-    # Use 'xlsxwriter' engine for better compatibility and features.
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Summaries')
     processed_data = output.getvalue()
     return processed_data
 
-# --- The Master Prompt Template ---
-# This is the heart of the application. It's a comprehensive, expert-level prompt
-# that instructs the AI on exactly how to perform the summarization task.
-def create_master_prompt(person_name, person_data):
+# --- Master Prompt 1: For Score-Based Summaries ---
+def create_summary_prompt(person_name, person_data):
     """
-    Dynamically creates the detailed, expert-level prompt for the Azure OpenAI API.
-    This function structures all the rules, examples, and data into a single request.
-
-    Args:
-        person_name (str): The name of the person being evaluated.
-        person_data (str): A string representation of the person's scores and indicators.
-
-    Returns:
-        str: A fully constructed prompt ready to be sent to the AI model.
+    Creates the prompt for generating the main executive summary from scores.
     """
     return f"""
-You are an expert HR and organizational development analyst. Your specialization is synthesizing quantitative leadership assessment data into a formal, professional, and purely behavioral performance summary. You must adhere to the highest standards of professional HR writing, ensuring the output is constructive, balanced, and directly tied to the provided evidence.
+You are a senior talent assessment consultant specializing in writing executive summaries for leadership assessment centers. Your writing style adheres strictly to British English and maintains a professional, constructive, and positive tone. Your primary skill is to weave competency scores into a fluid, professional narrative.
 
 ## Core Objective
-Your task is to process a set of scores for an individual across 8 core leadership competencies and their underlying behavioral indicators. You will then generate a multi-paragraph summary in both English and Arabic.
+Your task is to synthesize the provided competency scores for {person_name} into a formal, narrative-based executive summary.
 
 ## Input Data for {person_name}
 {person_data}
 
 ## Primary Directives & Rules
 
-1.  **Three-Paragraph Structure:**
-    * **Paragraph 1 (Introduction):** ALWAYS begin the summary with this exact introductory paragraph: "Your participation in the assessment center provided insight into how you demonstrate the leadership competencies in action. The feedback below highlights observed strengths and opportunities for development to support your continued growth."
-    * **Paragraph 2 (Strengths & Potential):** This paragraph MUST ONLY discuss strengths. It will first address all competencies with scores of 4 or 5. After that, it will address all competencies with a score of 3. Use natural transitional phrases like "In relation to [Competency]...", "Another area of strength was seen in...", etc.
-    * **Paragraph 3 (Development Areas):** This paragraph MUST ONLY discuss development areas, which are any competencies with scores of 1 or 2. If there are no scores of 1 or 2, this paragraph should not be generated. Introduce it with a phrase like "In relation to the development areas...".
+1.  **Writing Style: Describe, Don't Label.**
+    * **CRITICAL RULE:** Do not simply name the competency. Instead, describe the behaviors that were observed, using the competency name as your guide. The summary must be a story of the person's actions.
+    * **Incorrect (Labeling):** "{person_name} demonstrated Strategic Thinking."
+    * **Correct (Describing):** "{person_name} consistently displayed the ability to anticipate future challenges and proactively aligned his actions with the organisation’s long-term goals and vision."
 
-2.  **Score Interpretation Logic:**
-    * **Scores 4 & 5:** Frame these as "clear strength". Use confident and affirming language based on the indicator's definition (e.g., "You display clear strength in this area. You are able to...").
-    * **Score 3:** Frame these as "potential strengths" or areas that can be "further leveraged." You must follow a balanced structure: state the emerging positive behavior, then describe the scope for improvement using the indicator's language (e.g., "In relation to [Competency], this was displayed as an area of strength... however, there is some scope for you to develop...").
-    * **Scores 1 & 2:** Frame these as "development areas" or "areas for improvement." The language must be constructive and forward-looking (e.g., "There is room for improvement in [Competency]..." or "You would also benefit from further improving...").
+2.  **Structure Based on Profile Type:**
+    * **High-Scorer Profile (No scores of 1 or 2):** Write a single, flowing narrative paragraph. Start with a general opening like "{person_name} displayed strengths in multiple competencies assessed." Then, seamlessly describe the observed strengths for all competencies.
+    * **Mixed-Score Profile (Contains scores of 1 or 2):** Use an integrated narrative structure. Begin with the main strengths, then transition smoothly to growth opportunities using phrases like "...however, he may need to..." or "To further develop his competence...". The goal is a single, cohesive story, not two separate lists.
 
-3.  **Writing and Content Standards:**
-    * **Perspective:** CRITICAL CHANGE - Address the participant directly in the **2nd person** (you, your). Do NOT use their name or third-person pronouns (he/his) within the summary text.
-    * **Tone:** Formal, professional, objective, and constructive.
-    * **Evidence-Based:** Adhere strictly to the language of the provided indicators. DO NOT invent behaviors or make assumptions beyond the scope of the indicator's definition.
-    * **No Actions:** Identify the development area, but DO NOT prescribe solutions or development actions.
-    * **Structure:** For each point, state the **Competency** name first, then elaborate using the synthesized language from the **Indicator**.
-    * **Behavioral Focus:** Keep all feedback purely behavioral. Omit any technical or industry-specific references.
-    * **Length:** The total summary should not exceed 400 words.
+3.  **Tense and Perspective:**
+    * Use **past tense** for all observed behaviors (e.g., "He demonstrated...", "She showcased...").
+    * Use **present or future tense** for all development suggestions ("He could enhance...", "She would benefit from...").
+    * Use the candidate's first name, "{person_name}", only at the beginning. Use pronouns (He/She) thereafter.
 
-4.  **Language and Output Format:**
-    * First, generate the complete, final summary in English, starting with the mandatory introductory paragraph.
-    * Then, use a clear separator like '---ARABIC---'.
-    * After the separator, provide an accurate and professional Arabic translation of the English summary.
+4.  **Actionable Development (For Mixed Profiles Only):**
+    * For each growth opportunity (scores 1, 2), you MUST provide a **specific, actionable, and context-relevant suggestion**. Avoid generic advice.
+    * **Incorrect (Generic):** "He could benefit from a course on decision-making."
+    * **Correct (Specific):** "He may strengthen his decision-making skills by conducting in-depth analysis, comprehensive risk assessments and offering broader alternatives while gaining buy-in beforehand, to minimise resistance."
 
-## Detailed Analysis of Required Output (Internalizing Examples for High-Quality Generation)
-
-**Analyze and learn from these examples showing the transformation from scores to summary, paying close attention to the 2nd person perspective.**
-
-### Example 1: Primarily Strengths (Like Subject E01)
-* **Key Input Scores:** High scores (4s, 5s).
-* **Correct Output Structure:** An introductory paragraph, followed by a comprehensive strengths paragraph. No development paragraph.
-* **Reasoning to Emulate:** The summary should start with the standard intro. The strengths paragraph then uses phrases like "Your clear strength lie in your ability to..." and "You display capabilities in...". It addresses the participant directly and uses transitional phrases.
-
-### Example 2: Potential Strengths & Development Needs (Like Subject E32)
-* **Key Input Scores:** Scores of 3 and some scores of 1 or 2.
-* **Correct Output Structure:** An introductory paragraph, a paragraph for potential strengths, and a paragraph for development areas.
-* **Reasoning to Emulate:**
-    * **Paragraph 2 (Score 3):** The summary must identify scores of 3 as "potential strengths" using balanced phrasing like, *"In the area of [Competency], while you display [positive aspect], there is room for you to develop [area for leverage]."* This 2nd person, balanced structure is critical.
-    * **Paragraph 3 (Scores 1-2):** The summary must transition cleanly to development with phrases like "In terms of development areas...". It must use constructive, 2nd person language like "You would also benefit from..."
+5.  **General Rules:**
+    * **Word Count:** The entire summary must not exceed 280 words.
+    * **Coverage:** All 8 competencies must be addressed, either as a described strength or a growth opportunity.
+    * **Language:** British English. Professional synonyms for "good/bad". Correct punctuation.
+    * **ABSOLUTE RULE:** Never mention the numerical scores in the final text.
 
 ## Final Instruction for {person_name}
-Now, process the new set of competency scores provided for {person_name} and generate the multi-paragraph summary (Intro, Strengths, Development) in the **2nd person ("you/your")**. Generate it first in English and then in Arabic, adhering strictly to all the rules and learned examples above. The English and Arabic text should be separated by '---ARABIC---'.
+Now, process the provided competency scores for {person_name}. First, determine if it is a High-Scorer or Mixed-Score profile. Then, write a concise executive summary under 280 words, adhering to all the rules above. Focus on describing behaviors, not labeling competencies. Use the correct narrative structure for the profile type and NEVER mention the scores.
+"""
+
+# --- Master Prompt 2: For Rewriting Comments ---
+def create_comment_rewriting_prompt(person_name, raw_comments, score_summary):
+    """
+    Creates the prompt for cleaning and rewriting raw comments.
+    """
+    return f"""
+You are an expert HR communications specialist, skilled in reframing raw feedback into professional, constructive, and developmental recommendations. Your writing style is concise and adheres to British English.
+
+## Core Objective
+Your task is to analyze a set of raw, unstructured comments about {person_name}. You will filter, synthesize, and rewrite them into a single, professional paragraph that can be appended to an existing executive summary.
+
+## Existing Executive Summary (For Context & Contradiction Check)
+"{score_summary}"
+
+## Raw Comments for {person_name}
+{raw_comments}
+
+## Primary Directives & Rules
+
+1.  **Filter Aggressively:** Your first step is to filter the raw comments.
+    * **IGNORE** any comments that are purely positive ("He is great"), offensive, unprofessional, or not relevant to professional development.
+    * **FOCUS ONLY** on comments that suggest a developmental need.
+
+2.  **Synthesize and Theme:**
+    * If multiple comments point to the same developmental area (e.g., "not strategic," "no long-term view"), group them into a single, cohesive theme about strategic thinking.
+    * If comments point to separate themes, address them separately but concisely.
+
+3.  **Rewrite with Professionalism:**
+    * Rephrase any blunt or judgmental feedback into constructive, forward-looking advice.
+    * **Incorrect (Judgmental):** "He is direct and rude in meetings."
+    * **Correct (Constructive):** "He may benefit from adapting his communication style to better suit different audiences and situations."
+
+4.  **Contradiction Check:**
+    * **CRITICAL RULE:** The rewritten comments MUST NOT contradict the existing executive summary provided for context.
+    * If a raw comment suggests a weakness in an area that the summary identified as a clear strength, you must **IGNORE** that raw comment. The score-based summary is the primary source of truth.
+
+5.  **Handling No Developmental Feedback:**
+    * If, after filtering, there are no valid developmental comments left, your entire output MUST be this exact sentence: "The panel did not provide any specific developmental feedback."
+
+6.  **Language and Output Format:**
+    * **Word Count:** The final rewritten paragraph must not exceed 50 words.
+    * **Perspective:** Address the candidate directly in the 2nd person ("You could...", "You may benefit from...").
+    * **Bilingual Output:** First, write the final paragraph in English. Then, use a clear separator '---ARABIC---' and provide a high-quality, native-level Arabic translation that follows all professional HR conventions.
+
+## Final Instruction for {person_name}
+Analyze the raw comments provided. Filter, synthesize, and rewrite them into a single, professional, and constructive paragraph of no more than 50 words. Ensure the output does not contradict the existing summary. Provide the output in both English and Arabic, separated by '---ARABIC---'. If no developmental comments exist, output the standard "no feedback" sentence.
 """
 
 # --- API Call Function for Azure OpenAI ---
-def generate_summary_azure(prompt, api_key, endpoint, deployment_name):
+def generate_from_azure(prompt, api_key, endpoint, deployment_name):
     """
-    Calls the Azure OpenAI API to generate a summary.
-    This function handles the specific client initialization required for Azure.
+    A single function to call the Azure OpenAI API for both tasks.
     """
     try:
-        # Initialize the AzureOpenAI client with credentials from secrets
-        client = openai.AzureOpenAI(
-            api_key=api_key,
-            azure_endpoint=endpoint,
-            api_version="2024-02-01"  # A common, stable API version
-        )
-        
-        # Make the API call to the chat completions endpoint
+        client = openai.AzureOpenAI(api_key=api_key, azure_endpoint=endpoint, api_version="2024-02-01")
         response = client.chat.completions.create(
-            model=deployment_name,  # Use the deployment name for the model
+            model=deployment_name,
             messages=[
-                {"role": "system", "content": "You are an expert HR and organizational development analyst."},
+                {"role": "system", "content": "You are a senior talent assessment consultant and HR communications specialist following British English standards."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.2,
-            max_tokens=1000,
-            top_p=1.0,
-            frequency_penalty=0.0,
-            presence_penalty=0.0
+            temperature=0.2, max_tokens=800, top_p=1.0, frequency_penalty=0.0, presence_penalty=0.0
         )
-        content = response.choices[0].message.content
+        content = response.choices[0].message.content.strip()
         
-        # Split the response into English and Arabic parts using the custom separator
+        # Handle bilingual output for the comment rewriting task
         if '---ARABIC---' in content:
-            english_summary, arabic_summary = content.split('---ARABIC---', 1)
+            english_part, arabic_part = content.split('---ARABIC---', 1)
+            return english_part.strip(), arabic_part.strip()
         else:
-            # Fallback if the separator is not found in the AI's response
-            english_summary = content
-            arabic_summary = "Translation not generated."
-            
-        return english_summary.strip(), arabic_summary.strip()
-        
+            # For the summary task, the whole content is the English summary
+            return content, None
+
     except Exception as e:
         st.error(f"An error occurred while contacting Azure OpenAI: {e}")
         return None, None
 
 # --- Streamlit App Main UI ---
-st.set_page_config(page_title="HR Summary Generator (Azure)", layout="wide")
+st.set_page_config(page_title="DGE Full Report Generator", layout="wide")
+st.title("📄 DGE Full Report Generator")
 
-st.title("📄 Professional Performance Summary Generator (Azure OpenAI)")
-st.markdown("""
-This application uses AI to generate professional, behavioral summaries from assessment data.
-1.  **Set up your secrets file**. Enter your Azure credentials in the Streamlit Cloud app settings.
-2.  **Download the Sample Template** to see the required Excel format.
-3.  **Upload your completed Excel file**.
-4.  **Click 'Generate Summaries'** to process the file and download the results.
-""")
+# --- STEP 1: Score-Based Summary Generation ---
+st.header("Step 1: Generate Executive Summaries from Scores")
 
-# --- Create and provide a sample file for download ---
-sample_data = {
-    'Name': ['John Doe', 'John Doe', 'John Doe', 'Jane Smith', 'Jane Smith', 'Jane Smith'],
-    'Competency': ['Decision Making', 'Strategic Thinking', 'Capability Development', 'Adaptability Towards Change', 'Communication', 'Inspirational Leadership'],
-    'Indicator': ['Makes decisions with confidence and gains buy-in', 'Thinks long-term and strategically', 'Delegates responsibilities effectively to others', 'Navigates through change and learns from experience', 'Communicates clearly and displays listening skills', 'Fails to recognize each team member\'s unique style'],
-    'Score': [5, 4, 2, 4, 3, 1]
-}
-sample_df = pd.DataFrame(sample_data)
-sample_excel_data = to_excel(sample_df)
+with st.expander("Instructions & Sample File", expanded=True):
+    st.markdown("""
+    Upload an Excel file containing competency scores. The application will generate a professional executive summary for each person.
+    """)
+    # --- Create and provide a sample file for download ---
+    sample_scores_data = {
+        'email': ['jane.doe@example.com', 'john.roe@example.com'], 'first_name': ['Jane', 'John'], 'last_name': ['Doe', 'Roe'], 'level': ['Director', 'Manager'],
+        'Strategic Thinker': [4, 2], 'Impactful Decision Maker': [5, 5], 'Effective Collaborator': [2, 3], 'Talent Nurturer': [4, 2],
+        'Results Driver': [3, 4], 'Customer Advocate': [2, 4], 'Transformation Enabler': [3, 1], 'Innovation Catalyst': [1, 3]
+    }
+    sample_scores_df = pd.DataFrame(sample_scores_data)
+    sample_scores_excel = to_excel(sample_scores_df)
+    st.download_button(label="📥 Download Scores Template", data=sample_scores_excel, file_name="dge_scores_template.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-st.download_button(
-    label="📥 Download Sample Template File",
-    data=sample_excel_data,
-    file_name="summary_template.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+scores_file = st.file_uploader("Upload your Scores Excel file here", type="xlsx", key="scores_uploader")
 
-st.divider()
-
-# --- File Uploader ---
-uploaded_file = st.file_uploader("Upload your completed Excel file here", type="xlsx")
-
-if uploaded_file is not None:
-    try:
-        # Read the uploaded Excel file into a pandas DataFrame
-        df = pd.read_excel(uploaded_file)
+if scores_file is not None:
+    if st.button("Generate Summaries from Scores", key="generate_summaries"):
+        df_scores = pd.read_excel(scores_file)
         
-        # Validate that the necessary columns exist in the uploaded file
-        required_columns = ['Name', 'Indicator', 'Score', 'Competency']
-        if not all(col in df.columns for col in required_columns):
-            st.error(f"Error: The uploaded file is missing one or more required columns. Please ensure it contains: {', '.join(required_columns)}")
-        else:
-            st.success("Excel file loaded successfully. Ready to generate summaries.")
-            st.dataframe(df.head())
+        try:
+            azure_api_key = st.secrets["azure_openai"]["api_key"]
+            azure_endpoint = st.secrets["azure_openai"]["endpoint"]
+            azure_deployment_name = st.secrets["azure_openai"]["deployment_name"]
+        except (KeyError, FileNotFoundError):
+            st.error("Azure OpenAI credentials not found. Please configure them in your Streamlit secrets.")
+            st.stop()
 
-            # The main action button to start the generation process
-            if st.button("Generate Summaries", key="generate"):
-                # --- Improved Secrets Handling Logic ---
-                # 1. Check if the secrets dictionary exists at all.
-                if not hasattr(st, 'secrets') or not st.secrets:
-                    st.error("Secrets not found. Please ensure you have configured your secrets in the Streamlit Community Cloud settings.")
-                    st.stop()
-                
-                # 2. Check for the main 'azure_openai' section.
-                if "azure_openai" not in st.secrets:
-                    st.error("The `[azure_openai]` section is missing from your secrets configuration. Please check your spelling and formatting.")
-                    st.stop()
+        identifier_cols = ['email', 'first_name', 'last_name', 'level']
+        competency_columns = [col for col in df_scores.columns if col not in identifier_cols]
+        
+        summaries_data = []
+        progress_bar = st.progress(0)
 
-                # 3. Check for each specific key within the section.
-                try:
-                    azure_api_key = st.secrets["azure_openai"]["api_key"]
-                    azure_endpoint = st.secrets["azure_openai"]["endpoint"]
-                    azure_deployment_name = st.secrets["azure_openai"]["deployment_name"]
-                except KeyError as e:
-                    st.error(f"Missing key in your [azure_openai] secrets: {e}. Please ensure `api_key`, `endpoint`, and `deployment_name` are all present.")
-                    st.stop()
-                
-                # Group the DataFrame by 'Name' to process each person individually
-                grouped = df.groupby('Name')
-                results = []
-                
-                # Initialize a progress bar for user feedback
-                progress_bar = st.progress(0)
-                total_people = len(grouped)
-                
-                # Iterate through each person's data
-                for i, (name, group) in enumerate(grouped):
-                    st.write(f"Processing summary for: {name}...")
-                    
-                    # Format the person's data into a string for the prompt
-                    person_data_str = group[['Competency', 'Indicator', 'Score']].to_string(index=False)
-                    # Create the master prompt with the person's specific data
-                    prompt = create_master_prompt(name, person_data_str)
-                    
-                    # Call the Azure-specific function to get the summary
-                    english_summary, arabic_summary = generate_summary_azure(
-                        prompt, 
-                        azure_api_key, 
-                        azure_endpoint, 
-                        azure_deployment_name
-                    )
-                    
-                    # If the summary is successfully generated, add it to the results list
-                    if english_summary and arabic_summary:
-                        results.append({
-                            'Name': name,
-                            'English Summary': english_summary,
-                            'Arabic Summary': arabic_summary
-                        })
-                        st.success(f"Successfully generated summary for {name}.")
-                    else:
-                        st.error(f"Failed to generate summary for {name}.")
+        for i, row in df_scores.iterrows():
+            first_name = row['first_name']
+            person_data_str = "\n".join([f"- {comp}: {row[comp]}" for comp in competency_columns if comp in row and pd.notna(row[comp])])
+            prompt = create_summary_prompt(first_name, person_data_str)
+            summary_en, _ = generate_from_azure(prompt, azure_api_key, azure_endpoint, azure_deployment_name)
+            
+            if summary_en:
+                summaries_data.append({'email': row['email'], 'Executive Summary': summary_en})
+            else:
+                summaries_data.append({'email': row['email'], 'Executive Summary': "Error generating summary."})
+            
+            progress_bar.progress((i + 1) / len(df_scores))
+        
+        # Merge summaries back into the original dataframe
+        df_summaries = pd.DataFrame(summaries_data)
+        output_df = pd.merge(df_scores, df_summaries, on='email')
+        
+        # Store results in session state for the next step
+        st.session_state.summaries_df = output_df
+        st.success("Step 1 Complete: Executive summaries have been generated successfully!")
 
-                    # Update the progress bar
-                    progress_bar.progress((i + 1) / total_people)
-                
-                # --- Display and Download Final Results ---
-                if results:
-                    st.balloons()
-                    st.subheader("Generated Summaries")
-                    results_df = pd.DataFrame(results)
-                    st.dataframe(results_df) # Display results in a table
-                    
-                    # Convert the results DataFrame to an Excel file in memory
-                    excel_data = to_excel(results_df)
-                    
-                    # Create a download button for the generated Excel file
-                    st.download_button(
-                        label="📥 Download Summaries as Excel",
-                        data=excel_data,
-                        file_name="generated_summaries_azure.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+# --- Display Summaries and Show Step 2 ---
+if st.session_state.summaries_df is not None:
+    st.subheader("Generated Summaries (Step 1 Output)")
+    st.dataframe(st.session_state.summaries_df)
+    st.divider()
 
-    except Exception as e:
-        st.error(f"An error occurred while processing the file: {e}")
+    # --- STEP 2: Comment Rewriting and Appending ---
+    st.header("Step 2: Rewrite and Append Panel Comments")
+    
+    with st.expander("Instructions & Sample File", expanded=True):
+        st.markdown("""
+        Now, upload the Excel file containing raw panel comments. The application will rewrite them professionally and append them to the summaries generated above. The file must contain an 'email' and a 'Panel Recommendation - English' column.
+        """)
+        sample_comments_data = {
+            'email': ['jane.doe@example.com', 'jane.doe@example.com', 'john.roe@example.com'],
+            'Panel Recommendation - English': ['She needs to be less direct.', 'Sometimes ignores feedback.', 'Amazing person, no feedback needed.']
+        }
+        sample_comments_df = pd.DataFrame(sample_comments_data)
+        sample_comments_excel = to_excel(sample_comments_df)
+        st.download_button(label="📥 Download Comments Template", data=sample_comments_excel, file_name="dge_comments_template.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    comments_file = st.file_uploader("Upload your Comments Excel file here", type="xlsx", key="comments_uploader")
+
+    if comments_file is not None:
+        if st.button("Rewrite and Append Comments", key="rewrite_comments"):
+            df_comments = pd.read_excel(comments_file)
+            
+            try:
+                azure_api_key = st.secrets["azure_openai"]["api_key"]
+                azure_endpoint = st.secrets["azure_openai"]["endpoint"]
+                azure_deployment_name = st.secrets["azure_openai"]["deployment_name"]
+            except (KeyError, FileNotFoundError):
+                st.error("Azure OpenAI credentials not found.")
+                st.stop()
+            
+            # Group comments by email
+            comments_grouped = df_comments.groupby('email')['Panel Recommendation - English'].apply(lambda x: '\n- '.join(x.astype(str))).reset_index()
+            
+            final_results_df = st.session_state.summaries_df.copy()
+            rewritten_en_list = []
+            rewritten_ar_list = []
+
+            progress_bar_2 = st.progress(0)
+            
+            for i, row in final_results_df.iterrows():
+                email = row['email']
+                first_name = row['first_name']
+                score_summary = row['Executive Summary']
+                
+                # Find the comments for the current person
+                person_comments_series = comments_grouped[comments_grouped['email'] == email]
+                raw_comments = "- " + person_comments_series['Panel Recommendation - English'].iloc[0] if not person_comments_series.empty else "No comments provided."
+
+                prompt = create_comment_rewriting_prompt(first_name, raw_comments, score_summary)
+                comment_en, comment_ar = generate_from_azure(prompt, azure_api_key, azure_endpoint, azure_deployment_name)
+
+                if comment_en and comment_ar:
+                    rewritten_en_list.append(comment_en)
+                    rewritten_ar_list.append(comment_ar)
+                else:
+                    rewritten_en_list.append("Error processing comments.")
+                    rewritten_ar_list.append("Error processing comments.")
+                
+                progress_bar_2.progress((i + 1) / len(final_results_df))
+
+            # Append the rewritten comments as new columns
+            final_results_df['Rewritten Comment (EN)'] = rewritten_en_list
+            final_results_df['Rewritten Comment (AR)'] = rewritten_ar_list
+            
+            st.balloons()
+            st.subheader("Final Report with Appended Comments")
+            st.dataframe(final_results_df)
+
+            # Provide download for the final combined data
+            final_excel_data = to_excel(final_results_df)
+            st.download_button(label="📥 Download Final Report", data=final_excel_data, file_name="DGE_Final_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
