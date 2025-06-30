@@ -176,14 +176,15 @@ def generate_summary_from_llm(prompt):
     """
     FIXED: This function now makes a real API call to the Azure OpenAI gpt-4o model
     to generate a unique, high-quality summary based on the provided prompt.
-    It reads credentials from st.secrets.
+    It reads credentials from st.secrets using a simpler format.
     """
     try:
-        # Get credentials from Streamlit secrets
-        azure_endpoint = st.secrets["azure_openai"]["endpoint"]
-        api_key = st.secrets["azure_openai"]["api_key"]
-        api_version = st.secrets["azure_openai"]["api_version"]
-        deployment_name = st.secrets["azure_openai"]["deployment_name_gpt4o"]
+        # Get credentials from Streamlit secrets with a simpler structure
+        azure_endpoint = st.secrets["azure_endpoint"]
+        api_key = st.secrets["azure_api_key"]
+        deployment_name = st.secrets["azure_deployment_name"]
+        # A common API version is used here. You might need to update it based on your Azure setup.
+        api_version = "2024-02-01" 
 
         # Initialize the AzureOpenAI client
         client = AzureOpenAI(
@@ -274,7 +275,7 @@ def process_comments_and_append(results_df, comments_df):
             comment_data_prompt = f"**Main Report:**\n{main_eng_summary}\n\n**Raw Comments to Summarize:**\n- {'\n- '.join(person_comments)}"
             full_prompt = comment_prompt_template + comment_data_prompt
             
-            eng_comment_summary, ar_comment_summary = generate_summary_from_llm(full_prompt)
+            eng_comment_summary, ar_summary = generate_summary_from_llm(full_prompt)
 
             results_df.at[i, 'English Summary'] += f"\n\n{eng_comment_summary}"
             results_df.at[i, 'Arabic Summary'] += f"\n\n{ar_comment_summary}"
@@ -292,13 +293,11 @@ st.title("📄 Integrated Performance Summary Generator (Azure OpenAI)")
 st.info("""
     **First-Time Setup:** This application requires an Azure OpenAI API key.
     1.  Create a file named `secrets.toml` in a `.streamlit` directory in your app's root folder.
-    2.  Add your credentials to the file in the following format:
+    2.  Add your credentials to the file in the following simplified format:
     ```toml
-    [azure_openai]
-    endpoint = "YOUR_AZURE_OPENAI_ENDPOINT"
-    api_key = "YOUR_AZURE_OPENAI_API_KEY"
-    api_version = "YOUR_API_VERSION" # e.g., "2024-02-01"
-    deployment_name_gpt4o = "YOUR_GPT4o_DEPLOYMENT_NAME"
+    azure_endpoint = "YOUR_AZURE_OPENAI_ENDPOINT"
+    azure_api_key = "YOUR_AZURE_OPENAI_API_KEY"
+    azure_deployment_name = "YOUR_GPT4o_DEPLOYMENT_NAME"
     ```
 """)
 
