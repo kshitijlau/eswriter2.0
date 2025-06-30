@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import io
 import re
+import json
+from openai import AzureOpenAI # Use the OpenAI library for Azure
 
 # --- Helper Functions ---
 
@@ -118,6 +120,7 @@ You will receive a data set for one individual containing: 8 Competency Names an
 * **Word Count:** Maximum 400 words total per language (excluding the mandatory opening).
 * **Source Fidelity:** Base all statements *strictly* on the indicator language.
 * **Behavioral Focus:** No technical or industry-specific jargon.
+* **Output Separator:** You MUST separate the English summary from the Arabic summary with the exact delimiter: '---ARABIC_SUMMARY---'.
 
 **## Bilingual Generation Mandate**
 * Generate in **both English and Arabic**, following the same dynamic structure and professional tone.
@@ -155,6 +158,8 @@ Analyze a list of raw comments for an individual and generate a single, final su
 * **Word Count:** Maximum 50 words per language.
 * **Tone:** Professional, constructive, and forward-looking.
 * **Consistency:** The summary MUST NOT contradict the main report.
+* **Output Separator:** You MUST separate the English summary from the Arabic summary with the exact delimiter: '---ARABIC_SUMMARY---'.
+
 
 **## Bilingual Generation Mandate: English and Arabic**
 * **Primary Task:** Generate the summary in **both English and Arabic**, following all rules above.
@@ -167,78 +172,57 @@ Analyze a list of raw comments for an individual and generate a single, final su
 **## TASK: ANALYZE THE FOLLOWING COMMENTS AND GENERATE A 50-WORD SUMMARY PARAGRAPH TO APPEND TO THE MAIN REPORT PROVIDED.**
 """
 
-def generate_summary_from_llm(prompt, is_comment_summary=False):
+def generate_summary_from_llm(prompt):
     """
-    FIXED: This function now dynamically generates a unique summary for each person
-    by parsing the prompt and using the provided data, rather than returning a
-    static, hardcoded response. This simulates the behavior of a real LLM.
+    FIXED: This function now makes a real API call to the Azure OpenAI gpt-4o model
+    to generate a unique, high-quality summary based on the provided prompt.
+    It reads credentials from st.secrets.
     """
-    person_name_match = re.search(r"\*\*Person's Name:\*\* (.*)", prompt)
-    person_name = person_name_match.group(1).strip() if person_name_match else "The individual"
+    try:
+        # Get credentials from Streamlit secrets
+        azure_endpoint = st.secrets["azure_openai"]["endpoint"]
+        api_key = st.secrets["azure_openai"]["api_key"]
+        api_version = st.secrets["azure_openai"]["api_version"]
+        deployment_name = st.secrets["azure_openai"]["deployment_name_gpt4o"]
 
-    if is_comment_summary:
-        raw_comments_match = re.search(r"\*\*Raw Comments to Summarize:\*\*\n- (.*)", prompt, re.DOTALL)
-        if raw_comments_match:
-            english_comment_summary = f"""Additionally, feedback suggests a focus on enhancing executive presence. This includes projecting more confidence when presenting to senior stakeholders and actively increasing visibility in key meetings, ensuring all valuable contributions are fully recognized."""
-            arabic_comment_summary = f"""بالإضافة إلى ذلك، تشير الملاحظات لـ {person_name} إلى أنه يمكنه تعزيز حضوره التنفيذي من خلال إظهار المزيد من الثقة عند التقديم لكبار أصحاب المصلحة وزيادة حضوره في الاجتماعات الرئيسية. سيساعد ذلك في ضمان تقدير مساهماته القيمة بشكل كامل."""
+        # Initialize the AzureOpenAI client
+        client = AzureOpenAI(
+            azure_endpoint=azure_endpoint,
+            api_key=api_key,
+            api_version=api_version,
+        )
+
+        # Create the payload for the API call
+        message_text = [{"role": "user", "content": prompt}]
+
+        # Make the API call
+        completion = client.chat.completions.create(
+            model=deployment_name,
+            messages=message_text,
+            temperature=0.7,
+            max_tokens=1000, # Increased to ensure enough space for both languages
+            top_p=0.95,
+            frequency_penalty=0,
+            presence_penalty=0,
+            stop=None
+        )
+
+        # Parse the response
+        full_response_text = completion.choices[0].message.content
+
+        # Split English and Arabic summaries
+        if '---ARABIC_SUMMARY---' in full_response_text:
+            eng_summary, ar_summary = full_response_text.split('---ARABIC_SUMMARY---', 1)
+            return eng_summary.strip(), ar_summary.strip()
         else:
-            english_comment_summary, arabic_comment_summary = "", ""
-        return english_comment_summary, arabic_comment_summary
+            return full_response_text.strip(), "Arabic summary could not be parsed. Delimiter '---ARABIC_SUMMARY---' not found."
 
-    else:
-        # This block now dynamically builds the summary based on the prompt's data.
-        competency_data = {}
-        competency_blocks = prompt.split('\n\n**- Competency: ')
-        for block in competency_blocks[1:]:
-            name_match = re.match(r"(.*?)\*\*.*?Average Score:\s(.*?)\)", block)
-            if not name_match: continue
-            comp_name, avg_score = name_match.groups()
-            competency_data[comp_name] = {'avg': float(avg_score), 'indicators': []}
-            indicator_matches = re.findall(r"-\sIndicator:\s'(.*?)'\s\|\sScore:\s(.*?)\n", block)
-            for ind_text, ind_score in indicator_matches:
-                competency_data[comp_name]['indicators'].append({'text': ind_text, 'score': float(ind_score)})
-
-        strengths = {k: v for k, v in competency_data.items() if v['avg'] >= 4.0}
-        potentials = {k: v for k, v in competency_data.items() if 2.6 <= v['avg'] < 4.0}
-        dev_areas = {k: v for k, v in competency_data.items() if v['avg'] < 2.6}
-
-        def format_text(text): # Simple formatter to make text flow better
-            return text.replace(", demonstrating", "").replace(", ensuring", "").lower().strip().rstrip('.')
-
-        # Build dynamic English summary
-        eng_summary = "Your participation in the assessment center provided insight into how you demonstrate the leadership competencies in action. The feedback below highlights observed strengths and opportunities for development to support your continued growth.\n\n"
-        if strengths:
-            eng_summary += "You display clear strengths in several areas of leadership. "
-            for name, data in strengths.items():
-                highest_indicator = sorted(data['indicators'], key=lambda x: x['score'], reverse=True)[0]
-                eng_summary += f"In relation to **{name}**, he demonstrates a strong capacity to {format_text(highest_indicator['text'])}. "
-            eng_summary += "\n\n"
-
-        if potentials:
-            eng_summary += "In addition, there are areas where you demonstrate potential strengths that can be further leveraged. "
-            for name, data in potentials.items():
-                highest_indicator = sorted(data['indicators'], key=lambda x: x['score'], reverse=True)[0]
-                lowest_indicator = sorted(data['indicators'], key=lambda x: x['score'])[0]
-                eng_summary += f"In **{name}**, he effectively shows the ability to {format_text(highest_indicator['text'])}; however, there is room to enhance how he {format_text(lowest_indicator['text'])}. "
-            eng_summary += "\n\n"
-
-        if dev_areas:
-            eng_summary += "In relation to the development areas, several competencies emerged as areas for improvement. "
-            for name, data in dev_areas.items():
-                lowest_indicator = sorted(data['indicators'], key=lambda x: x['score'])[0]
-                eng_summary += f"Specifically in **{name}**, there is a clear need to focus on his ability to {format_text(lowest_indicator['text'])}. "
-            eng_summary += "Strengthening these aspects will be crucial for his continued professional growth."
-
-        # A simplified dynamic Arabic summary
-        arabic_summary = "نشكرك على مشاركتك في مركز التقييم، مما أتاح لنا رؤية متعمقة لكيفية تجسيدك للكفاءات القيادية عمليًا. تسلط الملاحظات التالية الضوء على نقاط القوة التي تم رصدها وفرص التطوير المتاحة لدعم نموك المستمر.\n\n"
-        if strengths:
-             arabic_summary += f"يُظهر {person_name} نقاط قوة واضحة في عدة مجالات قيادية، لا سيما في **{', '.join(strengths.keys())}**.\n\n"
-        if potentials:
-             arabic_summary += f"بالإضافة إلى ذلك، هناك مجالات قوة كامنة يمكن تعزيزها مثل **{', '.join(potentials.keys())}**.\n\n"
-        if dev_areas:
-             arabic_summary += f"فيما يتعلق بمجالات التطوير، برز **{', '.join(dev_areas.keys())}** كجانب يتطلب تحسينًا."
-
-        return eng_summary.strip(), arabic_summary.strip()
+    except KeyError as e:
+        st.error(f"Missing Secret: Please ensure your secrets.toml file contains the necessary Azure OpenAI credentials. Missing key: {e}")
+        return "Error: Missing configuration.", "Error: Missing configuration."
+    except Exception as e:
+        st.error(f"An error occurred while calling the OpenAI API: {e}")
+        return f"Error: API call failed.", "Error: API call failed."
 
 
 def process_scores(df):
@@ -248,31 +232,37 @@ def process_scores(df):
     people_data = df.iloc[1:]
     score_prompt_template = get_score_summary_prompt()
 
-    for _, row in people_data.iterrows():
+    progress_bar = st.progress(0)
+    total_people = len(people_data)
+    for i, (_, row) in enumerate(people_data.iterrows()):
         person_name = row.iloc[0]
         if pd.isna(person_name) or 'ERROR' in str(row.iloc[1]): continue
+        
+        st.write(f"Generating summary for {person_name}...")
 
         person_data_prompt = f"**Person's Name:** {person_name}\n\n**Competency Data:**\n"
-        # Corrected range to match 8 competencies
-        for i in range(8):
-            comp_col_index = 1 + (i * 5)
-            # Ensure we don't go out of bounds
+        for j in range(8):
+            comp_col_index = 1 + (j * 5)
             if comp_col_index >= len(df.columns): break
             person_data_prompt += f"\n**- Competency: {df.columns[comp_col_index]}** (Average Score: {row[comp_col_index]})\n"
-            for j in range(4):
-                ind_col_index = comp_col_index + 1 + j
+            for k in range(4):
+                ind_col_index = comp_col_index + 1 + k
                 if ind_col_index >= len(df.columns): break
                 person_data_prompt += f"  - Indicator: '{indicator_definitions[ind_col_index]}' | Score: {row[ind_col_index]}\n"
 
         full_prompt = score_prompt_template + person_data_prompt
-        eng_summary, ar_summary = generate_summary_from_llm(full_prompt, is_comment_summary=False)
+        eng_summary, ar_summary = generate_summary_from_llm(full_prompt)
         results.append({"Person": person_name, "English Summary": eng_summary, "Arabic Summary": ar_summary})
+        progress_bar.progress((i + 1) / total_people)
+        
     return pd.DataFrame(results)
 
 def process_comments_and_append(results_df, comments_df):
     """Processes comments and appends them to the existing summaries."""
     comment_prompt_template = get_comment_summary_prompt()
     
+    progress_bar = st.progress(0)
+    total_people = len(results_df)
     for i, row in results_df.iterrows():
         person_code = row['Person']
         main_eng_summary = row['English Summary']
@@ -280,20 +270,37 @@ def process_comments_and_append(results_df, comments_df):
         person_comments = comments_df[comments_df['Person Code'] == person_code]['Comments'].tolist()
 
         if person_comments:
+            st.write(f"Summarizing comments for {person_code}...")
             comment_data_prompt = f"**Main Report:**\n{main_eng_summary}\n\n**Raw Comments to Summarize:**\n- {'\n- '.join(person_comments)}"
             full_prompt = comment_prompt_template + comment_data_prompt
             
-            eng_comment_summary, ar_comment_summary = generate_summary_from_llm(full_prompt, is_comment_summary=True)
+            eng_comment_summary, ar_comment_summary = generate_summary_from_llm(full_prompt)
 
             results_df.at[i, 'English Summary'] += f"\n\n{eng_comment_summary}"
             results_df.at[i, 'Arabic Summary'] += f"\n\n{ar_comment_summary}"
+        
+        progress_bar.progress((i + 1) / total_people)
             
     return results_df
 
 # --- Streamlit App UI ---
 
 st.set_page_config(layout="wide")
-st.title("📄 Integrated Performance Summary Generator")
+st.title("📄 Integrated Performance Summary Generator (Azure OpenAI)")
+
+# --- ADDED: Instructions for setting up secrets.toml ---
+st.info("""
+    **First-Time Setup:** This application requires an Azure OpenAI API key.
+    1.  Create a file named `secrets.toml` in a `.streamlit` directory in your app's root folder.
+    2.  Add your credentials to the file in the following format:
+    ```toml
+    [azure_openai]
+    endpoint = "YOUR_AZURE_OPENAI_ENDPOINT"
+    api_key = "YOUR_AZURE_OPENAI_API_KEY"
+    api_version = "YOUR_API_VERSION" # e.g., "2024-02-01"
+    deployment_name_gpt4o = "YOUR_GPT4o_DEPLOYMENT_NAME"
+    ```
+""")
 
 st.markdown("### 1. Upload Quantitative Scores File")
 with st.expander("Show Score File Instructions"):
@@ -312,7 +319,7 @@ if uploaded_scores_file:
     try:
         scores_df = pd.read_excel(uploaded_scores_file, engine='openpyxl')
         if st.button("Generate Summaries from Scores", key="generate_scores"):
-            with st.spinner("Analyzing scores and generating summaries..."):
+            with st.spinner("Analyzing scores and generating summaries via Azure OpenAI... This may take a moment."):
                 results_df = process_scores(scores_df)
                 st.session_state['results_df'] = results_df
                 st.success("Score-based summaries generated successfully!")
@@ -342,7 +349,7 @@ if 'results_df' in st.session_state:
         try:
             comments_df = pd.read_excel(uploaded_comments_file, engine='openpyxl')
             if st.button("Incorporate Comments into Summaries", key="generate_comments"):
-                with st.spinner("Analyzing comments and updating summaries..."):
+                with st.spinner("Analyzing comments and updating summaries via Azure OpenAI..."):
                     current_results = st.session_state['results_df'].copy()
                     final_df = process_comments_and_append(current_results, comments_df)
                     st.session_state['final_df'] = final_df
